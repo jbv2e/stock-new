@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "@shared/*": ["packages/shared/src/*"],
+      "@broker-core/*": ["packages/broker-core/src/*"],
+      "@notification-core/*": ["packages/notification-core/src/*"],
+      "@rule-engine/*": ["packages/rule-engine/src/*"]
+    }
+  }
+}
