@@ -2,42 +2,34 @@ import { Controller, Get, Req, Res, UseGuards } from '@nestjs/common';
 import { type Response, type Request } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
+import { cookieOptions } from './cookie.options';
 
 @Controller('auth/google')
 export class GoogleAuthController {
   constructor(private readonly authService: AuthService) {}
 
-  // 1) 구글 로그인 시작
   @Get()
   @UseGuards(AuthGuard('google'))
   async googleLogin() {
-    // 이 라우트는 Google 로그인 URL로 redirect됨
+    // Guard handles redirect to Google
   }
 
-  // 2) 구글 로그인 콜백
   @Get('callback')
   @UseGuards(AuthGuard('google'))
   async googleCallback(@Req() req: Request, @Res() res: Response) {
-    // GoogleStrategy.validate() 에서 user 객체 반환됨
     const user = req.user as any;
-
-    // JWT 발급
     const tokens = this.authService.generateTokens(user);
 
-    const isProd = process.env.NODE_ENV === 'production';
+    // 로그인 성공 시 최근 로그인 기록 저장
+    await this.authService.recordLogin(user.id);
 
+    res.cookie('access_token', tokens.accessToken, cookieOptions());
+    res.cookie(
+      'refresh_token',
+      tokens.refreshToken,
+      cookieOptions({ maxAge: 7 * 24 * 60 * 60 * 1000 }),
+    );
 
-    // HttpOnly 쿠키로 access_token 설정
-    res.cookie('access_token', tokens.accessToken, {
-      httpOnly: true,
-      secure: isProd,       // ⚠ 로컬 개발용 : false
-      sameSite: isProd ? 'none' : 'lax',     // ⚠ 로컬 개발용 : lax
-      // secure:  true,       // product
-      // sameSite: 'none',     // product
-      path: '/',
-    });
-
-    // 프론트엔드로 redirect
     return res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
   }
 }

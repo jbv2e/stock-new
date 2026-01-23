@@ -10,6 +10,7 @@ import {
 import { KisBrokerAdapter } from './adapters/kis-broker.adapter';
 
 // 어댑터들을 한 곳에서 관리
+// 나중에 미래에셋, 삼성증권 등을 추가하더라도 이 서비스만 사용하면 되게끔.
 
 @Injectable()
 export class BrokersService {

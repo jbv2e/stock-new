@@ -20,7 +20,7 @@ import { type BrokerType, PlaceOrderParams } from './interfaces/broker-adapter.i
 export class BrokersController {
   constructor(private readonly brokersService: BrokersService) {}
 
-
+  // JWT 로그인된 유저 기준으로 증권 계좌/주문 테스트용.
   // 잔고 조회: GET http://localhost:3000/brokers/KIS/balance
   // 주문: POST http://localhost:3000/brokers/KIS/order
   // 둘 다 프론트에서 /auth/me 호출할 때와 마찬가지로 쿠키에 있는 access_token 기준으로 동작.

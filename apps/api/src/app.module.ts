@@ -18,6 +18,9 @@ import { User } from './users/user.entity';
 import { ConfigModule } from '@nestjs/config';
 import { GoogleAuthModule } from 'auth/google.auth.module';
 import { BrokersModule } from 'brokers/brokers.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { Stock } from './notifications/stock.entity';
+import { StockAlert } from './notifications/stock-alert.entity';
 
 @Module({
   imports: [
@@ -27,13 +30,14 @@ import { BrokersModule } from 'brokers/brokers.module';
     TypeOrmModule.forRoot({
       type: 'better-sqlite3', 
       database: 'db.sqlite',
-      entities: [User],
+      entities: [User, Stock, StockAlert],
       synchronize: true,
     }),
     UsersModule,
     GoogleAuthModule,
     AuthModule,
-    BrokersModule
+    BrokersModule,
+    NotificationsModule
   ],
 })
 export class AppModule {}

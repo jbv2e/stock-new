@@ -4,46 +4,34 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
 import { UserService } from '../users/users.service';
 
-// cookie Extractor
-const cookieExtractor = (req: Request): string | null => {
-  // console.log(req)
-
-  // let token = null;
-  // if (req && req.cookies && req.cookies.access_token) {
-  //   token = req.cookies.access_token;
-  // }
-  // return token;
-
-  if(!req || !req.headers || !req.headers.cookie) {
+const refreshCookieExtractor = (req: Request): string | null => {
+  if (!req?.headers?.cookie) {
     return null;
   }
 
   const cookies = req.headers.cookie.split(';');
-  const cookie = cookies.map(v=>v.trim()).find((cookie) => cookie.startsWith('access_token='));
-  if(!cookie) {
+  const refreshCookie = cookies
+    .map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith('refresh_token='));
+
+  if (!refreshCookie) {
     return null;
   }
 
-  // console.log(cookie.split('=')[1])
-  return cookie.split('=')[1];
-}
+  return refreshCookie.split('=')[1];
+};
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
+export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
   constructor(private readonly userService: UserService) {
     super({
-      // jwtFromRequest: ExtractJwt.fromExtractors([
-      //   (req) => req?.cookies?.access_token ?? null,
-      // ]),
-      jwtFromRequest: ExtractJwt.fromExtractors([cookieExtractor]),
+      jwtFromRequest: ExtractJwt.fromExtractors([refreshCookieExtractor]),
       ignoreExpiration: false,
       secretOrKey: process.env.JWT_SECRET!,
-      // passReqToCallback: false,
     });
   }
 
   async validate(payload: any) {
-    // DB에서 최신 상태 조회하여 정지 계정 차단
     const user = await this.userService.findById(payload.sub);
     if (!user) {
       throw new UnauthorizedException('사용자를 찾을 수 없습니다.');

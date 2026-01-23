@@ -17,6 +17,18 @@ export class User {
   @Column()
   name: string;
 
-  @Column({ nullable: true })
-  picture: string;
+  @Column({ type: 'text', nullable: true })
+  picture: string | null; // 프로필 이미지 URL (없을 수 있음)
+
+  @Column({ default: 'user' })
+  role: 'user' | 'admin';
+
+  @Column({ default: 'active' })
+  status: 'active' | 'suspended';
+
+  @Column({ type: 'datetime', nullable: true })
+  lastLogin: Date | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  lastLogout: Date | null;
 }
