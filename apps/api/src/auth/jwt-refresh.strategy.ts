@@ -27,7 +27,8 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([refreshCookieExtractor]),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET!,
+      // 리프레시 토큰 검증 전용 시크릿
+      secretOrKey: process.env.JWT_REFRESH_SECRET ?? process.env.JWT_SECRET!,
     });
   }
 

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { UserService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
+import type { StringValue } from 'ms';
 import { User } from '../users/user.entity';
 
 @Injectable()
@@ -38,9 +39,24 @@ export class AuthService {
       lastLogout: user.lastLogout ?? null,
     };
 
+    // 액세스/리프레시 토큰을 분리된 시크릿과 만료시간으로 발급
+    const accessSecret = process.env.JWT_ACCESS_SECRET ?? process.env.JWT_SECRET!;
+    const refreshSecret = process.env.JWT_REFRESH_SECRET ?? process.env.JWT_SECRET!;
+    // env 문자열을 JWT 타입에 맞게 캐스팅
+    const accessExpiresIn =
+      (process.env.JWT_ACCESS_EXPIRES_IN ?? '1h') as StringValue | number;
+    const refreshExpiresIn =
+      (process.env.JWT_REFRESH_EXPIRES_IN ?? '7d') as StringValue | number;
+
     return {
-      accessToken: this.jwt.sign(payload),
-      refreshToken: this.jwt.sign(payload, { expiresIn: '7d' }),
+      accessToken: this.jwt.sign(payload, {
+        secret: accessSecret,
+        expiresIn: accessExpiresIn,
+      }),
+      refreshToken: this.jwt.sign(payload, {
+        secret: refreshSecret,
+        expiresIn: refreshExpiresIn,
+      }),
     };
   }
 

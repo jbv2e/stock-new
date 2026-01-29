@@ -7,24 +7,48 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 // 1. 미들웨어 함수 내보내기 (이름은 반드시 middleware여야 함)
-export function middleware(req: NextRequest) {
-  const token = req.cookies.get("access_token")?.value
+export default async function middleware(req: NextRequest) {
+  const token = req.cookies.get('access_token')?.value
 
   const isLoginPage = req.nextUrl.pathname.startsWith('/login')
-  const isAuthPage = req.nextUrl.pathname.startsWith('/auth')
 
-  // 로그인 안 되었는데 보호 페이지에 접근할 때 → login으로
-  if (!token && !isLoginPage && !isAuthPage) {
-    return NextResponse.redirect(new URL('/login', req.url))
-  }
-
-  // 로그인 되어있는데 또 /login 가려고 하면 → 대시보드로
+  // Refresh is handled by the API/client on 401
   if (token && isLoginPage) {
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
+  // 1. Access Token은 없지만 Refresh Token이 있는 경우: 갱신 시도
+  //   const token = req.cookies.get("access_token")?.value
+  // const refreshToken = req.cookies.get("refresh_token")?.value
+  // if (!token && refreshToken) {
+  //   try {
+  //     // 백엔드 Refresh 엔드포인트 호출 (URL은 환경에 맞게 설정 필요)
+  //     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/auth/refresh`, {
+  //       method: 'GET',
+  //       headers: {
+  //         'Cookie': `refresh_token=${refreshToken}`
+  //       }
+  //     })
+
+  //     if (res.ok) {
+  //       const data = await res.json()
+  //       // 갱신 성공: 새로운 Access Token을 쿠키에 설정하고 요청 진행
+  //       const response = NextResponse.next()
+  //       response.cookies.set('access_token', data.accessToken, {
+  //         httpOnly: true,
+  //         path: '/',
+  //         //maxAge: 60 * 60 // 1시간 (백엔드 설정과 동일하게)
+  //         maxAge: 60 // 1시간 (백엔드 설정과 
+  //       })
+  //       return response
+  //     }
+  //   } catch (error) {
+  //     // 갱신 실패 시(네트워크 오류 등) 아래 로그인 리다이렉트 로직으로 진행
+  //     console.error("Token refresh failed", error)
+  //   }
+  // }
+
   return NextResponse.next()
-  
 }
 
 /* 미인증 접근 검사 후 헤더 조작 전달 예시

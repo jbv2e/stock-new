@@ -37,7 +37,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       // ]),
       jwtFromRequest: ExtractJwt.fromExtractors([cookieExtractor]),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET!,
+      // 액세스 토큰 검증 전용 시크릿
+      secretOrKey: process.env.JWT_ACCESS_SECRET ?? process.env.JWT_SECRET!,
       // passReqToCallback: false,
     });
   }

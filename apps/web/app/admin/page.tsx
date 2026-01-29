@@ -1,9 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { apiJson } from '@/lib/api';
 
 type UserRow = {
   id: string;
@@ -19,12 +21,27 @@ type UserRow = {
 };
 
 type Stock = { symbol: string; name: string };
-type Alert = { id: string; symbol: string; direction: 'up' | 'down'; targetPrice: number; createdAt: string };
+
+type Alert = {
+  id: string;
+  symbol: string;
+  direction: 'up' | 'down';
+  targetPrice: number;
+  createdAt: string;
+};
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+type ExistsResponse = { exists: boolean };
+
+type LogoutResponse = { lastLogout?: string | null };
+
+type CurrentUser = { role?: string };
+
 export default function AdminPage() {
-  const [currentUser, setCurrentUser] = useState<{ role?: string } | null>(null);
+  const router = useRouter();
+
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [adminExists, setAdminExists] = useState<boolean | null>(null);
 
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -39,7 +56,6 @@ export default function AdminPage() {
 
   const headers = useMemo(() => ({ 'Content-Type': 'application/json' }), []);
 
-  // 신규 사용자 생성 폼
   const [newUser, setNewUser] = useState({
     provider: 'google',
     providerId: '',
@@ -50,7 +66,6 @@ export default function AdminPage() {
     picture: '',
   });
 
-  // 알림 등록 폼
   const [alertForm, setAlertForm] = useState({
     symbol: '',
     name: '',
@@ -61,21 +76,15 @@ export default function AdminPage() {
   const [stockQuery, setStockQuery] = useState('');
 
   const fetchJson = useCallback(
-    async (path: string, init?: RequestInit) => {
+    async <T,>(path: string, init?: RequestInit) => {
       setError(null);
-      const res = await fetch(`${API_URL}${path}`, {
+      return apiJson<T>(path, {
         ...init,
-        credentials: 'include', // 인증 쿠키 포함
         headers: {
           ...headers,
           ...(init?.headers || {}),
         },
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Request failed: ${res.status}`);
-      }
-      return res.json();
     },
     [headers],
   );
@@ -83,48 +92,49 @@ export default function AdminPage() {
   const loadCurrentUser = useCallback(async () => {
     if (!API_URL) return;
     try {
-      const data = await fetchJson('/auth/me', { method: 'GET' });
+      const data = await fetchJson<CurrentUser>('/auth/me', { method: 'GET' });
       setCurrentUser(data);
     } catch {
       setCurrentUser(null);
+      router.replace('/login');
     }
-  }, [fetchJson]);
+  }, [fetchJson, router]);
 
   const checkAdminExists = useCallback(async () => {
     if (!API_URL) return;
     try {
-      const data = await fetchJson('/users/admin/exists', { method: 'GET' });
+      const data = await fetchJson<ExistsResponse>('/users/admin/exists', { method: 'GET' });
       setAdminExists(Boolean(data?.exists));
     } catch {
       setAdminExists(null);
     }
-  }, [fetchJson]);
+  }, [fetchJson, router]);
 
   const loadUsers = useCallback(async () => {
     if (!API_URL) return;
     setLoadingUsers(true);
     try {
-      const data = await fetchJson('/users');
+      const data = await fetchJson<UserRow[]>('/users');
       setUsers(data);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoadingUsers(false);
     }
-  }, [fetchJson]);
+  }, [fetchJson, router]);
 
   const loadAlerts = useCallback(async () => {
     if (!API_URL) return;
     setLoadingAlerts(true);
     try {
-      const data = await fetchJson('/stocks/alerts');
+      const data = await fetchJson<Alert[]>('/stocks/alerts');
       setAlerts(data);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoadingAlerts(false);
     }
-  }, [fetchJson]);
+  }, [fetchJson, router]);
 
   const loadStocks = useCallback(
     async (q?: string) => {
@@ -132,7 +142,7 @@ export default function AdminPage() {
       setLoadingStocks(true);
       try {
         const qs = q ? `?q=${encodeURIComponent(q)}` : '';
-        const data = await fetchJson(`/stocks${qs}`);
+        const data = await fetchJson<Stock[]>(`/stocks${qs}`);
         setStocks(data);
       } catch (e: any) {
         setError(e.message);
@@ -146,12 +156,12 @@ export default function AdminPage() {
   const loadMyLastLogout = useCallback(async () => {
     if (!API_URL) return;
     try {
-      const data = await fetchJson('/users/me/logout');
+      const data = await fetchJson<LogoutResponse>('/users/me/logout');
       setLastLogout(data.lastLogout ?? null);
     } catch (e: any) {
       setError(e.message);
     }
-  }, [fetchJson]);
+  }, [fetchJson, router]);
 
   useEffect(() => {
     checkAdminExists();
@@ -164,11 +174,11 @@ export default function AdminPage() {
 
   const handleCreateUser = async () => {
     if (!newUser.email || !newUser.name || !newUser.providerId) {
-      setError('providerId, email, name은 필수입니다.');
+      setError('providerId, email, name are required.');
       return;
     }
     try {
-      await fetchJson('/users', {
+      await fetchJson<UserRow>('/users', {
         method: 'POST',
         body: JSON.stringify({
           ...newUser,
@@ -191,9 +201,9 @@ export default function AdminPage() {
   };
 
   const handleDeleteUser = async (id: string) => {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+    if (!confirm('Delete this user?')) return;
     try {
-      await fetchJson(`/users/${id}`, { method: 'DELETE' });
+      await fetchJson<void>(`/users/${id}`, { method: 'DELETE' });
       setUsers((prev) => prev.filter((u) => u.id !== id));
     } catch (e: any) {
       setError(e.message);
@@ -202,11 +212,11 @@ export default function AdminPage() {
 
   const handleAddAlert = async () => {
     if (!alertForm.symbol || !alertForm.targetPrice) {
-      setError('symbol과 targetPrice는 필수입니다.');
+      setError('symbol and targetPrice are required.');
       return;
     }
     try {
-      await fetchJson('/stocks/alerts', {
+      await fetchJson<Alert>('/stocks/alerts', {
         method: 'POST',
         body: JSON.stringify({
           symbol: alertForm.symbol,
@@ -217,16 +227,16 @@ export default function AdminPage() {
       });
       setAlertForm({ symbol: '', name: '', direction: 'up', targetPrice: '' });
       loadAlerts();
-      loadStocks(stockQuery); // 종목 목록도 새로고침
+      loadStocks(stockQuery);
     } catch (e: any) {
       setError(e.message);
     }
   };
 
   const handleRemoveAlert = async (id: string) => {
-    if (!confirm('알림을 삭제하시겠습니까?')) return;
+    if (!confirm('Delete this alert?')) return;
     try {
-      await fetchJson(`/stocks/alerts/${id}`, { method: 'DELETE' });
+      await fetchJson<void>(`/stocks/alerts/${id}`, { method: 'DELETE' });
       setAlerts((prev) => prev.filter((a) => a.id !== id));
     } catch (e: any) {
       setError(e.message);
@@ -235,7 +245,7 @@ export default function AdminPage() {
 
   const handleBootstrapAdmin = async () => {
     try {
-      await fetchJson('/users/admin/bootstrap/self', {
+      await fetchJson<void>('/users/admin/bootstrap/self', {
         method: 'POST',
       });
       checkAdminExists();
@@ -251,54 +261,50 @@ export default function AdminPage() {
       <div className="mx-auto max-w-6xl px-6 py-10 space-y-6">
         <header className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-slate-400">관리자 전용 콘솔</p>
+            <p className="text-sm text-slate-400">Admin console</p>
             <h1 className="text-2xl font-semibold">Stock Admin</h1>
           </div>
           <div className="text-right text-sm text-slate-300 space-y-1">
-            <p>최근 로그아웃: {lastLogout ? new Date(lastLogout).toLocaleString() : '기록 없음'}</p>
-            {currentUser?.role && <p>내 역할: {currentUser.role}</p>}
-            {error && <p className="text-red-400 mt-1">에러: {error}</p>}
+            <p>Last logout: {lastLogout ? new Date(lastLogout).toLocaleString() : 'N/A'}</p>
+            {currentUser?.role && <p>Role: {currentUser.role}</p>}
+            {error && <p className="text-red-400 mt-1">Error: {error}</p>}
           </div>
         </header>
 
-        {/* 관리자 없음: 부트스트랩 섹션 */}
         {adminExists === false && (
           <Card className="bg-amber-50 text-slate-900 border-amber-200">
             <CardHeader>
-              <CardTitle className="text-lg">첫 관리자 계정 생성</CardTitle>
+              <CardTitle className="text-lg">Create first admin</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-slate-700">
-                현재 관리자 계정이 없습니다. 구글 등으로 로그인한 현재 계정을 관리자 권한으로 승격합니다.
+                No admin account exists. Bootstrap the current account as admin.
               </p>
               <Button onClick={handleBootstrapAdmin} className="w-full md:w-auto">
-                내 계정을 관리자 등록
+                Bootstrap admin
               </Button>
             </CardContent>
           </Card>
         )}
 
-        {/* 권한 없음 표시 */}
         {adminExists && currentUser && currentUser.role !== 'admin' && (
           <Card className="bg-red-950 border-red-800 text-red-100">
             <CardHeader>
-              <CardTitle className="text-lg">권한 없음</CardTitle>
+              <CardTitle className="text-lg">Access denied</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <p>관리자 권한이 없어 접근할 수 없습니다.</p>
+              <p>Admin permissions are required.</p>
             </CardContent>
           </Card>
         )}
 
-        {/* 관리자 UI */}
         {adminExists && currentUser?.role === 'admin' && (
           <>
-            {/* 사용자 관리 */}
             <Card className="bg-slate-900 border-slate-800">
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-lg">사용자 관리</CardTitle>
+                <CardTitle className="text-lg">User management</CardTitle>
                 <Button variant="outline" size="sm" onClick={loadUsers} disabled={loadingUsers}>
-                  {loadingUsers ? '새로고침...' : '새로고침'}
+                  {loadingUsers ? 'Loading...' : 'Reload'}
                 </Button>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -344,7 +350,7 @@ export default function AdminPage() {
                     onChange={(e) => setNewUser({ ...newUser, picture: e.target.value })}
                   />
                   <Button className="md:col-span-3" onClick={handleCreateUser}>
-                    사용자 추가
+                    Create user
                   </Button>
                 </div>
 
@@ -352,13 +358,13 @@ export default function AdminPage() {
                   <table className="min-w-full text-sm">
                     <thead className="bg-slate-800 text-slate-300">
                       <tr>
-                        <th className="px-3 py-2 text-left">이름</th>
-                        <th className="px-3 py-2 text-left">이메일</th>
-                        <th className="px-3 py-2 text-left">역할</th>
-                        <th className="px-3 py-2 text-left">상태</th>
-                        <th className="px-3 py-2 text-left">최근 로그인</th>
-                        <th className="px-3 py-2 text-left">최근 로그아웃</th>
-                        <th className="px-3 py-2 text-left">관리</th>
+                        <th className="px-3 py-2 text-left">Name</th>
+                        <th className="px-3 py-2 text-left">Email</th>
+                        <th className="px-3 py-2 text-left">Role</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                        <th className="px-3 py-2 text-left">Last login</th>
+                        <th className="px-3 py-2 text-left">Last logout</th>
+                        <th className="px-3 py-2 text-left">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -376,7 +382,7 @@ export default function AdminPage() {
                           </td>
                           <td className="px-3 py-2">
                             <Button variant="destructive" size="sm" onClick={() => handleDeleteUser(u.id)}>
-                              삭제
+                              Delete
                             </Button>
                           </td>
                         </tr>
@@ -384,7 +390,7 @@ export default function AdminPage() {
                       {users.length === 0 && (
                         <tr>
                           <td className="px-3 py-4 text-center text-slate-400" colSpan={7}>
-                            사용자 데이터가 없습니다.
+                            No users found.
                           </td>
                         </tr>
                       )}
@@ -394,29 +400,28 @@ export default function AdminPage() {
               </CardContent>
             </Card>
 
-            {/* 알림 관리 */}
             <div className="grid gap-4 md:grid-cols-2">
               <Card className="bg-slate-900 border-slate-800">
                 <CardHeader>
-                  <CardTitle className="text-lg">종목 목록</CardTitle>
+                  <CardTitle className="text-lg">Stock list</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex gap-2">
                     <Input
-                      placeholder="심볼/이름 검색"
+                      placeholder="symbol or name"
                       value={stockQuery}
                       onChange={(e) => setStockQuery(e.target.value)}
                     />
                     <Button onClick={() => loadStocks(stockQuery)} disabled={loadingStocks}>
-                      검색
+                      Search
                     </Button>
                   </div>
                   <div className="max-h-72 overflow-auto border border-slate-800 rounded">
                     <table className="min-w-full text-sm">
                       <thead className="bg-slate-800 text-slate-300">
                         <tr>
-                          <th className="px-3 py-2 text-left">심볼</th>
-                          <th className="px-3 py-2 text-left">이름</th>
+                          <th className="px-3 py-2 text-left">Symbol</th>
+                          <th className="px-3 py-2 text-left">Name</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -429,7 +434,7 @@ export default function AdminPage() {
                         {stocks.length === 0 && (
                           <tr>
                             <td className="px-3 py-4 text-center text-slate-400" colSpan={2}>
-                              종목 데이터가 없습니다.
+                              No stocks found.
                             </td>
                           </tr>
                         )}
@@ -441,27 +446,27 @@ export default function AdminPage() {
 
               <Card className="bg-slate-900 border-slate-800">
                 <CardHeader>
-                  <CardTitle className="text-lg">알림 설정</CardTitle>
+                  <CardTitle className="text-lg">Alert settings</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="grid gap-2 md:grid-cols-2">
                     <Input
-                      placeholder="심볼 (필수)"
+                      placeholder="symbol"
                       value={alertForm.symbol}
                       onChange={(e) => setAlertForm({ ...alertForm, symbol: e.target.value })}
                     />
                     <Input
-                      placeholder="종목명 (없으면 빈칸)"
+                      placeholder="name (optional)"
                       value={alertForm.name}
                       onChange={(e) => setAlertForm({ ...alertForm, name: e.target.value })}
                     />
                     <Input
-                      placeholder="목표가 (필수, 숫자)"
+                      placeholder="target price"
                       value={alertForm.targetPrice}
                       onChange={(e) => setAlertForm({ ...alertForm, targetPrice: e.target.value })}
                     />
                     <Input
-                      placeholder="방향 up/down"
+                      placeholder="direction (up/down)"
                       value={alertForm.direction}
                       onChange={(e) =>
                         setAlertForm({
@@ -471,7 +476,7 @@ export default function AdminPage() {
                       }
                     />
                     <Button className="md:col-span-2" onClick={handleAddAlert} disabled={loadingAlerts}>
-                      알림 추가
+                      Create alert
                     </Button>
                   </div>
 
@@ -479,11 +484,11 @@ export default function AdminPage() {
                     <table className="min-w-full text-sm">
                       <thead className="bg-slate-800 text-slate-300">
                         <tr>
-                          <th className="px-3 py-2 text-left">심볼</th>
-                          <th className="px-3 py-2 text-left">방향</th>
-                          <th className="px-3 py-2 text-left">목표가</th>
-                          <th className="px-3 py-2 text-left">등록</th>
-                          <th className="px-3 py-2 text-left">관리</th>
+                          <th className="px-3 py-2 text-left">Symbol</th>
+                          <th className="px-3 py-2 text-left">Direction</th>
+                          <th className="px-3 py-2 text-left">Target</th>
+                          <th className="px-3 py-2 text-left">Created</th>
+                          <th className="px-3 py-2 text-left">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -497,7 +502,7 @@ export default function AdminPage() {
                             </td>
                             <td className="px-3 py-2">
                               <Button variant="destructive" size="sm" onClick={() => handleRemoveAlert(a.id)}>
-                                삭제
+                                Delete
                               </Button>
                             </td>
                           </tr>
@@ -505,7 +510,7 @@ export default function AdminPage() {
                         {alerts.length === 0 && (
                           <tr>
                             <td className="px-3 py-4 text-center text-slate-400" colSpan={5}>
-                              등록된 알림이 없습니다.
+                              No alerts found.
                             </td>
                           </tr>
                         )}
